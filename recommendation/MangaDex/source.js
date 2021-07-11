@@ -662,11 +662,14 @@ const paperback_extensions_common_1 = require("paperback-extensions-common");
 const entities = require("entities");
 const MangaDexSettings_1 = require("./MangaDexSettings");
 const MangaDexHelper_1 = require("./MangaDexHelper");
+const MangaDexSimilarManga_1 = require("./MangaDexSimilarManga");
 const tag_json_1 = __importDefault(require("./external/tag.json"));
 const MANGADEX_DOMAIN = 'https://mangadex.org';
 const MANGADEX_API = 'https://api.mangadex.org';
 const COVER_BASE_URL = 'https://uploads.mangadex.org/covers';
-const RECOMMENDATION_URL = 'https://framboisepi.github.io/data';
+// Titles recommendation is shown on the homepage when enabled in source settings.
+// Recommendation are made using https://github.com/Similar-Manga
+const RECOMMENDATION_URL = 'https://framboisepi.github.io/SimilarData';
 exports.MangaDexInfo = {
     author: 'nar1n',
     description: 'Extension that pulls manga from MangaDex',
@@ -705,6 +708,7 @@ class MangaDex extends paperback_extensions_common_1.Source {
                 rows: () => Promise.resolve([
                     MangaDexSettings_1.contentSettings(this.stateManager),
                     MangaDexSettings_1.thumbnailSettings(this.stateManager),
+                    MangaDexSettings_1.homepageSettings(this.stateManager),
                     MangaDexSettings_1.resetSettings(this.stateManager),
                 ])
             }));
@@ -768,7 +772,7 @@ class MangaDex extends paperback_extensions_common_1.Source {
     getRecommendedIds() {
         return __awaiter(this, void 0, void 0, function* () {
             // Return the list of ids that should be used for the recommendation system
-            const recommendedIds = yield this.stateManager.retrieve("recommendedIds");
+            const recommendedIds = yield this.stateManager.retrieve('recommendedIds');
             if (recommendedIds === null) {
                 return [];
             }
@@ -785,7 +789,7 @@ class MangaDex extends paperback_extensions_common_1.Source {
     addRecommendedId(id) {
         return __awaiter(this, void 0, void 0, function* () {
             // Add an id to the list of manga that should be used for the recommendation system
-            var recommendedIds = yield this.getRecommendedIds();
+            const recommendedIds = yield this.getRecommendedIds();
             // If the id is already in the list, we put it at the end
             const index = recommendedIds.indexOf(id, 0);
             if (index > -1) {
@@ -799,7 +803,7 @@ class MangaDex extends paperback_extensions_common_1.Source {
     removeRecommendedId(id) {
         return __awaiter(this, void 0, void 0, function* () {
             // Add an id to the list of manga that should be used for the recommendation system
-            var recommendedIds = yield this.getRecommendedIds();
+            const recommendedIds = yield this.getRecommendedIds();
             // If the id is already in the list, we put it at the end
             const index = recommendedIds.indexOf(id, 0);
             if (index > -1) {
@@ -922,6 +926,7 @@ class MangaDex extends paperback_extensions_common_1.Source {
                             langCode,
                             group,
                             time,
+                            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
                             // @ts-ignore
                             sortingIndex
                         }));
@@ -933,25 +938,6 @@ class MangaDex extends paperback_extensions_common_1.Source {
                     hasResults = false;
                 }
             }
-            // Add the "Add to recommendation" chapter
-            chapters.push(createChapter({
-                id: "deactivate-rec",
-                mangaId: mangaId,
-                name: "Remove from manga recommandation",
-                chapNum: -1,
-                langCode: paperback_extensions_common_1.LanguageCode.UNKNOWN,
-                // @ts-ignore
-                sortingIndex: chapters.length + 1
-            }));
-            chapters.push(createChapter({
-                id: "activate-rec",
-                mangaId: mangaId,
-                name: "Add to manga recommandation",
-                chapNum: -1,
-                langCode: paperback_extensions_common_1.LanguageCode.UNKNOWN,
-                // @ts-ignore
-                sortingIndex: chapters.length + 2
-            }));
             return chapters;
         });
     }
@@ -960,26 +946,6 @@ class MangaDex extends paperback_extensions_common_1.Source {
             if (!chapterId.includes('-')) {
                 // Numeric ID
                 throw new Error('OLD ID: PLEASE REFRESH AND CLEAR ORPHANED CHAPTERS');
-            }
-            if (chapterId === "activate-rec") {
-                // It's an activation chapter
-                this.addRecommendedId(mangaId);
-                return createChapterDetails({
-                    id: chapterId,
-                    mangaId: mangaId,
-                    pages: [RECOMMENDATION_URL + "/chapters_images/add_to_recommendation.jpg"],
-                    longStrip: false
-                });
-            }
-            if (chapterId === "deactivate-rec") {
-                // It's an activation chapter
-                this.removeRecommendedId(mangaId);
-                return createChapterDetails({
-                    id: chapterId,
-                    mangaId: mangaId,
-                    pages: [RECOMMENDATION_URL + "/chapters_images/remove_from_recommendation.jpg"],
-                    longStrip: false
-                });
             }
             const serverUrl = yield this.getMDHNodeURL(chapterId);
             const dataSaver = yield MangaDexSettings_1.getDataSaver(this.stateManager);
@@ -997,6 +963,8 @@ class MangaDex extends paperback_extensions_common_1.Source {
             else {
                 pages = chapterDetails.data.map((x) => `${serverUrl}/data/${chapterDetails.hash}/${x}`);
             }
+            // The chapter is being read, add the mangaId to the recommendation list
+            MangaDexSimilarManga_1.addRecommendedId(this.stateManager, mangaId);
             return createChapterDetails({
                 id: chapterId,
                 mangaId: mangaId,
@@ -1062,94 +1030,25 @@ class MangaDex extends paperback_extensions_common_1.Source {
     }
     getHomePageSections(sectionCallback) {
         return __awaiter(this, void 0, void 0, function* () {
-            //const demographics: string[] = await getDemographics(this.stateManager)
-            const sectionsIds = (yield this.getRecommendedIds()).slice(0, 5); // We don't show more that 5 recommended sections
             const promises = [];
-            //for (const data of sectionsData) {
-            for (const dataId of sectionsIds) {
-                const similarRequest = createRequestObject({
-                    url: `${RECOMMENDATION_URL}/similar/${dataId}.json`,
-                    method: 'GET',
-                });
-                // Get the section data
-                promises.push(this.requestManager.schedule(similarRequest, 1).then((similarResponse) => __awaiter(this, void 0, void 0, function* () {
-                    const results = [];
-                    const tiles = {};
-                    const similarJson = (typeof similarResponse.data) === 'string' ? JSON.parse(similarResponse.data) : similarResponse.data;
-                    const section = createHomeSection({
-                        id: dataId,
-                        title: similarJson.title.en,
-                        view_more: false,
-                    });
-                    // Let the app load empty sections
-                    sectionCallback(section);
-                    const similarIds = [dataId];
-                    for (const manga of similarJson.matches) {
-                        similarIds.push(manga.id);
-                    }
-                    // We get info for ids from MangaDex api
-                    const mdRequest = createRequestObject({
-                        url: new MangaDexHelper_1.URLBuilder(MANGADEX_API)
-                            .addPathComponent('manga')
-                            .addQueryParameter('ids', similarIds)
-                            .addQueryParameter('limit', similarIds.length)
-                            .addQueryParameter('includes', ['cover_art'])
-                            .buildUrl(),
-                        method: 'GET',
-                    });
-                    const mdResponse = yield this.requestManager.schedule(mdRequest, 1);
-                    const mdJson = (typeof mdResponse.data) === 'string' ? JSON.parse(mdResponse.data) : mdResponse.data;
-                    for (const manga of mdJson.results) {
-                        const mangaDetails = manga.data.attributes;
-                        const mangaId = manga.data.id;
-                        const titles = [
-                            ...Object.values(mangaDetails.title),
-                            ...mangaDetails.altTitles.flatMap((x) => Object.values(x))
-                        ].map((x) => this.decodeHTMLEntity(x));
-                        const title = (typeof titles[0]) === 'undefined' ? "default" : titles[0];
-                        const coverFileName = manga.relationships.filter((x) => x.type == 'cover_art').map((x) => { var _a; return (_a = x.attributes) === null || _a === void 0 ? void 0 : _a.fileName; })[0];
-                        let image;
-                        if (coverFileName) {
-                            image = `${COVER_BASE_URL}/${mangaId}/${coverFileName}${MangaDexHelper_1.MDImageQuality.getEnding(yield MangaDexSettings_1.getMangaThumbnail(this.stateManager))}`;
-                        }
-                        else {
-                            image = 'https://mangadex.org/_nuxt/img/cover-placeholder.d12c3c5.jpg';
-                        }
-                        tiles[mangaId] = {
-                            id: mangaId,
-                            title: title,
-                            image
-                        };
-                    }
-                    for (const id of similarIds) {
-                        results.push(createMangaTile({
-                            id: id,
-                            title: createIconText({ text: tiles[id].title }),
-                            image: tiles[id].image
-                        }));
-                    }
-                    section.items = results;
-                    sectionCallback(section);
-                })));
-            }
-            // Make sure the function completes
-            yield Promise.all(promises);
-            /*
+            const demographics = yield MangaDexSettings_1.getDemographics(this.stateManager);
+            // If the user want to see recommendation on the homepage, we process them
+            const enabled_homepage_sections = yield MangaDexSettings_1.getEnabledHomePageSections(this.stateManager);
             const sections = [
                 {
                     request: createRequestObject({
-                        url: await this.getCustomListRequestURL('8018a70b-1492-4f91-a584-7451d7787f7a', demographics),
+                        url: yield this.getCustomListRequestURL('8018a70b-1492-4f91-a584-7451d7787f7a', demographics),
                         method: 'GET',
                     }),
                     section: createHomeSection({
                         id: 'seasonal',
                         title: 'Seasonal',
-                        type: HomeSectionType.featured
+                        type: paperback_extensions_common_1.HomeSectionType.featured
                     }),
                 },
                 {
                     request: createRequestObject({
-                        url: new URLBuilder(MANGADEX_API)
+                        url: new MangaDexHelper_1.URLBuilder(MANGADEX_API)
                             .addPathComponent('manga')
                             .addQueryParameter('limit', 20)
                             .addQueryParameter('contentRating', demographics)
@@ -1165,12 +1064,12 @@ class MangaDex extends paperback_extensions_common_1.Source {
                 },
                 {
                     request: createRequestObject({
-                        url: new URLBuilder(MANGADEX_API)
+                        url: new MangaDexHelper_1.URLBuilder(MANGADEX_API)
                             .addPathComponent('manga')
                             .addQueryParameter('limit', 20)
                             .addQueryParameter('contentRating', demographics)
                             .addQueryParameter('includes', ['cover_art'])
-                            .addQueryParameter('order', {'updatedAt': 'desc'})
+                            .addQueryParameter('order', { 'updatedAt': 'desc' })
                             .buildUrl(),
                         method: 'GET',
                     }),
@@ -1180,49 +1079,145 @@ class MangaDex extends paperback_extensions_common_1.Source {
                         view_more: true,
                     }),
                 },
-            ]
-            const promises: Promise<void>[] = []
-    
+            ];
             for (const section of sections) {
-                // Let the app load empty sections
-                sectionCallback(section.section)
-    
-                // Get the section data
-                promises.push(
-                    this.requestManager.schedule(section.request, 1).then(async response => {
-                        const json = (typeof response.data) === 'string' ? JSON.parse(response.data) : response.data
-                        const results = []
-    
-                        if(json.results === undefined) throw new Error(`Failed to parse json results for section ${section.section.title}`)
-    
+                // We only add the section if it is requested by the user in settings
+                if (enabled_homepage_sections.includes(section.section.id)) {
+                    // Let the app load empty sections
+                    sectionCallback(section.section);
+                    // Get the section data
+                    promises.push(this.requestManager.schedule(section.request, 1).then((response) => __awaiter(this, void 0, void 0, function* () {
+                        const json = (typeof response.data) === 'string' ? JSON.parse(response.data) : response.data;
+                        const results = [];
+                        if (json.results === undefined)
+                            throw new Error(`Failed to parse json results for section ${section.section.title}`);
                         for (const manga of json.results) {
-                            const mangaId = manga.data.id
-                            const mangaDetails = manga.data.attributes
-                            const title = this.decodeHTMLEntity(Object.values(mangaDetails.title)[0] as string)
-                            const coverFileName = manga.relationships.filter((x: any) => x.type == 'cover_art').map((x: any) => x.attributes?.fileName)[0]
-                            let image: string
+                            const mangaId = manga.data.id;
+                            const mangaDetails = manga.data.attributes;
+                            const title = this.decodeHTMLEntity(Object.values(mangaDetails.title)[0]);
+                            const coverFileName = manga.relationships.filter((x) => x.type == 'cover_art').map((x) => { var _a; return (_a = x.attributes) === null || _a === void 0 ? void 0 : _a.fileName; })[0];
+                            let image;
                             if (coverFileName) {
-                                image = `${COVER_BASE_URL}/${mangaId}/${coverFileName}${MDImageQuality.getEnding(await getHomepageThumbnail(this.stateManager))}`
-                            } else {
-                                image = 'https://mangadex.org/_nuxt/img/cover-placeholder.d12c3c5.jpg'
+                                image = `${COVER_BASE_URL}/${mangaId}/${coverFileName}${MangaDexHelper_1.MDImageQuality.getEnding(yield MangaDexSettings_1.getHomepageThumbnail(this.stateManager))}`;
                             }
-    
+                            else {
+                                image = 'https://mangadex.org/_nuxt/img/cover-placeholder.d12c3c5.jpg';
+                            }
                             results.push(createMangaTile({
                                 id: mangaId,
-                                title: createIconText({text: title}),
+                                title: createIconText({ text: title }),
                                 image
-                            }))
+                            }));
                         }
-    
-                        section.section.items = results
-                        sectionCallback(section.section)
-                    }),
-                )
+                        section.section.items = results;
+                        sectionCallback(section.section);
+                    })));
+                }
             }
-    
+            // If the user want to see recommendations on the homepage, we process them
+            if (MangaDexSettings_1.getEnabledRecommendations(this.stateManager)) {
+                const recommendedIds = yield MangaDexSimilarManga_1.getRecommendedIds(this.stateManager);
+                for (const recommendedId of recommendedIds) {
+                    // First we fetch similar titles
+                    const similarRequest = createRequestObject({
+                        url: `${RECOMMENDATION_URL}/similar/${recommendedId}.json`,
+                        method: 'GET',
+                    });
+                    promises.push(this.requestManager.schedule(similarRequest, 1).then((similarResponse) => __awaiter(this, void 0, void 0, function* () {
+                        // We should only process if the response is valid
+                        // We won't throw an error but silently pass as an error occurre with 
+                        // titles unsupported by SimilarManga (new titles for example)
+                        if (similarResponse.status !== 200) {
+                            console.log(`Could not fetch similar titles for id: ${recommendedId}, request failed with status ${similarResponse.status}`);
+                        }
+                        else {
+                            const similarJson = (typeof similarResponse.data) === 'string' ? JSON.parse(similarResponse.data) : similarResponse.data;
+                            // We should only process if the result is valid
+                            // We won't throw an error but silently pass as an error occurre with 
+                            // titles unsupported by SimilarManga (new titles for example)
+                            if (similarJson.id === undefined) {
+                                console.log('Could not fetch similar titles for id: ' + recommendedId + ', json is invalid');
+                            }
+                            else {
+                                // Now we know the title of the recommended manga, we can thus create the section
+                                const section = createHomeSection({
+                                    id: recommendedId,
+                                    // Can titles be html encoded?
+                                    title: this.decodeHTMLEntity(similarJson.title.en),
+                                    view_more: false,
+                                });
+                                // Let the app load empty sections
+                                sectionCallback(section);
+                                // We make the list of similar titles
+                                // The first element is the "recommendation title". Other ids are sorted by decreasing similarity
+                                const similarIds = [recommendedId];
+                                for (const manga of similarJson.matches) {
+                                    similarIds.push(manga.id);
+                                }
+                                // Then we request information about these ids from MangaDex
+                                // Titles and ids are available in SimilarManga database. This step is required to get thumbnails.
+                                // The issue is MangaDex result does not preserve ids order
+                                // Thus we construct an object `tiles` that will contain information about each titles
+                                // We will finally use this object to generate the sorted MangaTiles list
+                                const tiles = {};
+                                const mdRequest = createRequestObject({
+                                    url: new MangaDexHelper_1.URLBuilder(MANGADEX_API)
+                                        .addPathComponent('manga')
+                                        .addQueryParameter('ids', similarIds)
+                                        .addQueryParameter('limit', similarIds.length)
+                                        .addQueryParameter('includes', ['cover_art'])
+                                        .buildUrl(),
+                                    method: 'GET',
+                                });
+                                const mdResponse = yield this.requestManager.schedule(mdRequest, 1);
+                                const mdJson = (typeof mdResponse.data) === 'string' ? JSON.parse(mdResponse.data) : mdResponse.data;
+                                // We process returned data
+                                for (const manga of mdJson.results) {
+                                    const mangaDetails = manga.data.attributes;
+                                    const mangaId = manga.data.id;
+                                    const titles = [
+                                        ...Object.values(mangaDetails.title),
+                                        ...mangaDetails.altTitles.flatMap((x) => Object.values(x))
+                                    ].map((x) => this.decodeHTMLEntity(x));
+                                    const title = (typeof titles[0]) === 'undefined' ? 'default' : titles[0];
+                                    const coverFileName = manga.relationships.filter((x) => x.type == 'cover_art').map((x) => { var _a; return (_a = x.attributes) === null || _a === void 0 ? void 0 : _a.fileName; })[0];
+                                    let image;
+                                    if (coverFileName) {
+                                        image = `${COVER_BASE_URL}/${mangaId}/${coverFileName}${MangaDexHelper_1.MDImageQuality.getEnding(yield MangaDexSettings_1.getMangaThumbnail(this.stateManager))}`;
+                                    }
+                                    else {
+                                        image = 'https://mangadex.org/_nuxt/img/cover-placeholder.d12c3c5.jpg';
+                                    }
+                                    tiles[mangaId] = {
+                                        id: mangaId,
+                                        title: title,
+                                        image
+                                    };
+                                }
+                                // Generate the MangaTiles list, sorted by decreasing similarity
+                                const results = [];
+                                for (const id of similarIds) {
+                                    // `tiles[id]` may not exist, for example if the id is filtered by demographic by MD api
+                                    if (tiles[id].title === undefined) {
+                                        results.push(createMangaTile({
+                                            id: id,
+                                            title: createIconText({ text: tiles[id].title }),
+                                            image: tiles[id].image
+                                        }));
+                                    }
+                                    else {
+                                        console.log(`Id ${id} was not returned by MangaDex api for recommendation id ${recommendedId}`);
+                                    }
+                                }
+                                section.items = results;
+                                sectionCallback(section);
+                            }
+                        }
+                    })));
+                }
+            }
             // Make sure the function completes
-            await Promise.all(promises)
-            */
+            yield Promise.all(promises);
         });
     }
     getViewMoreItems(homepageSectionId, metadata) {
@@ -1349,10 +1344,10 @@ class MangaDex extends paperback_extensions_common_1.Source {
 }
 exports.MangaDex = MangaDex;
 
-},{"./MangaDexHelper":55,"./MangaDexSettings":56,"./external/tag.json":57,"entities":5,"paperback-extensions-common":13}],55:[function(require,module,exports){
+},{"./MangaDexHelper":55,"./MangaDexSettings":56,"./MangaDexSimilarManga":57,"./external/tag.json":58,"entities":5,"paperback-extensions-common":13}],55:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MDImageQuality = exports.URLBuilder = exports.MDDemographics = exports.MDLanguages = void 0;
+exports.MDImageQuality = exports.URLBuilder = exports.MDHomepageSections = exports.MDDemographics = exports.MDLanguages = void 0;
 class MDLanguagesClass {
     constructor() {
         this.Languages = [
@@ -1656,6 +1651,38 @@ class MDDemographicsClass {
     }
 }
 exports.MDDemographics = new MDDemographicsClass;
+class MDHomepageSectionsClass {
+    constructor() {
+        this.Sections = [
+            {
+                name: 'Seasonal',
+                enum: 'seasonal',
+                default: true
+            },
+            {
+                name: 'Popular',
+                enum: 'popular',
+                default: true
+            },
+            {
+                name: 'Recently Updated',
+                enum: 'recently_updated',
+                default: true
+            }
+        ];
+    }
+    getEnumList() {
+        return this.Sections.map(Sections => Sections.enum);
+    }
+    getName(sectionsEnum) {
+        var _a, _b;
+        return (_b = (_a = this.Sections.filter(Sections => Sections.enum == sectionsEnum)[0]) === null || _a === void 0 ? void 0 : _a.name) !== null && _b !== void 0 ? _b : '';
+    }
+    getDefault() {
+        return this.Sections.filter(Sections => Sections.default).map(Sections => Sections.enum);
+    }
+}
+exports.MDHomepageSections = new MDHomepageSectionsClass;
 class URLBuilder {
     constructor(baseUrl) {
         this.parameters = {};
@@ -1746,8 +1773,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resetSettings = exports.thumbnailSettings = exports.getMangaThumbnail = exports.getSearchThumbnail = exports.getHomepageThumbnail = exports.contentSettings = exports.getSkipSameChapter = exports.getDataSaver = exports.getDemographics = exports.getLanguages = void 0;
+exports.homepageSettings = exports.getAmountRecommendations = exports.getEnabledRecommendations = exports.getEnabledHomePageSections = exports.resetSettings = exports.thumbnailSettings = exports.getMangaThumbnail = exports.getSearchThumbnail = exports.getHomepageThumbnail = exports.contentSettings = exports.getSkipSameChapter = exports.getDataSaver = exports.getDemographics = exports.getLanguages = void 0;
 const MangaDexHelper_1 = require("./MangaDexHelper");
+const MangaDexSimilarManga_1 = require("./MangaDexSimilarManga");
 const getLanguages = (stateManager) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     return (_a = (yield stateManager.retrieve('languages'))) !== null && _a !== void 0 ? _a : MangaDexHelper_1.MDLanguages.getDefault();
@@ -1929,14 +1957,174 @@ const resetSettings = (stateManager) => {
                 stateManager.store('homepage_thumbnail', null),
                 stateManager.store('search_thumbnail', null),
                 stateManager.store('manga_thumbnail', null),
-                stateManager.store('recommendedIds', null)
+                stateManager.store('recommendedIds', null),
+                stateManager.store('enabled_homepage_sections', null),
+                stateManager.store('enabled_recommendations', null),
+                stateManager.store('amount_of_recommendations', null)
             ]).then();
         }
     });
 };
 exports.resetSettings = resetSettings;
+const getEnabledHomePageSections = (stateManager) => __awaiter(void 0, void 0, void 0, function* () {
+    var _h;
+    return (_h = (yield stateManager.retrieve('enabled_homepage_sections'))) !== null && _h !== void 0 ? _h : MangaDexHelper_1.MDHomepageSections.getDefault();
+});
+exports.getEnabledHomePageSections = getEnabledHomePageSections;
+const getEnabledRecommendations = (stateManager) => __awaiter(void 0, void 0, void 0, function* () {
+    var _j;
+    return (_j = (yield stateManager.retrieve('enabled_recommendations'))) !== null && _j !== void 0 ? _j : false;
+});
+exports.getEnabledRecommendations = getEnabledRecommendations;
+const getAmountRecommendations = (stateManager) => __awaiter(void 0, void 0, void 0, function* () {
+    var _k;
+    return (_k = (yield stateManager.retrieve('amount_of_recommendations'))) !== null && _k !== void 0 ? _k : 5;
+});
+exports.getAmountRecommendations = getAmountRecommendations;
+const homepageSettings = (stateManager) => {
+    return createNavigationButton({
+        id: 'homepage_settings',
+        value: '',
+        label: 'Homepage Settings',
+        form: createForm({
+            onSubmit: (values) => {
+                return Promise.all([
+                    stateManager.store('enabled_homepage_sections', values.enabled_homepage_sections),
+                    // The `as boolean` seems required to prevent Paperback from throwing 
+                    // `Invalid type for key value; expected `Bool` got `Optional<JSValue>``
+                    stateManager.store('enabled_recommendations', values.enabled_recommendations),
+                    stateManager.store('amount_of_recommendations', values.amount_of_recommendations),
+                    MangaDexSimilarManga_1.spliceRecommendedIds(stateManager, values.amount_of_recommendations),
+                ]).then();
+            },
+            validate: () => {
+                return Promise.resolve(true);
+            },
+            sections: () => {
+                return Promise.resolve([
+                    createSection({
+                        id: 'homepage_sections_section',
+                        //footer: 'Which sections should be shown on the homepage',
+                        rows: () => {
+                            return Promise.all([
+                                exports.getEnabledHomePageSections(stateManager),
+                            ]).then((values) => __awaiter(void 0, void 0, void 0, function* () {
+                                var _a;
+                                return [
+                                    createSelect({
+                                        id: 'enabled_homepage_sections',
+                                        label: 'Homepage sections',
+                                        options: MangaDexHelper_1.MDHomepageSections.getEnumList(),
+                                        displayLabel: option => MangaDexHelper_1.MDHomepageSections.getName(option),
+                                        value: (_a = values[0]) !== null && _a !== void 0 ? _a : [],
+                                        allowsMultiselect: true,
+                                        minimumOptionCount: 0
+                                    }),
+                                ];
+                            }));
+                        }
+                    }),
+                    createSection({
+                        id: 'recommendations_settings_section',
+                        header: 'Titles recommendations',
+                        footer: 'Recommendation are based on recently read chapters and shown on the homepage',
+                        rows: () => {
+                            return Promise.all([
+                                exports.getEnabledRecommendations(stateManager),
+                                exports.getAmountRecommendations(stateManager),
+                                // Can be used to debug recommended ids
+                                //getRecommendedIds(stateManager)
+                            ]).then((values) => __awaiter(void 0, void 0, void 0, function* () {
+                                var _a, _b;
+                                return [
+                                    createSwitch({
+                                        id: 'enabled_recommendations',
+                                        label: 'Enable recommendations',
+                                        value: (_a = values[0]) !== null && _a !== void 0 ? _a : false
+                                    }),
+                                    createStepper({
+                                        id: 'amount_of_recommendations',
+                                        label: 'Amount of recommendation',
+                                        value: (_b = values[1]) !== null && _b !== void 0 ? _b : 5,
+                                        min: 1,
+                                        max: 15,
+                                        step: 1
+                                    }),
+                                    // Can be used to debug recommended ids
+                                    //createMultilineLabel({
+                                    //    id: 'recommendation_ids_list',
+                                    //    value: '',
+                                    //    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                                    //    label: values[2]!.toString(),
+                                    //}),   
+                                ];
+                            }));
+                        }
+                    }),
+                ]);
+            }
+        })
+    });
+};
+exports.homepageSettings = homepageSettings;
 
-},{"./MangaDexHelper":55}],57:[function(require,module,exports){
+},{"./MangaDexHelper":55,"./MangaDexSimilarManga":57}],57:[function(require,module,exports){
+"use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.addRecommendedId = exports.spliceRecommendedIds = exports.getRecommendedIds = void 0;
+const MangaDexSettings_1 = require("./MangaDexSettings");
+const getRecommendedIds = (stateManager) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    // Return the list of ids that should be used for recommendations
+    // We don't need to check the length of the list. If the max length was changed by the user, 
+    // the list should have been modified
+    return (_a = (yield stateManager.retrieve('recommendedIds'))) !== null && _a !== void 0 ? _a : [];
+});
+exports.getRecommendedIds = getRecommendedIds;
+const spliceRecommendedIds = (stateManager, amount) => __awaiter(void 0, void 0, void 0, function* () {
+    // Only keep `amount` elements in the recommendation list
+    const recommendedIds = yield exports.getRecommendedIds(stateManager);
+    stateManager.store('recommendedIds', recommendedIds.slice(0, amount));
+});
+exports.spliceRecommendedIds = spliceRecommendedIds;
+const addRecommendedId = (stateManager, mangaId) => __awaiter(void 0, void 0, void 0, function* () {
+    // Add an id to the list of manga that should be used for recommendations
+    const recommendedIds = yield exports.getRecommendedIds(stateManager);
+    // If the id is already in the list, we remove it to put it at the beginning
+    const index = recommendedIds.indexOf(mangaId, 0);
+    if (index > -1) {
+        recommendedIds.splice(index, 1);
+    }
+    // We add the id at the beginning of list
+    recommendedIds.unshift(mangaId);
+    // We only keep the right amount of titles in order to prevent the list from being to large
+    stateManager.store('recommendedIds', recommendedIds.slice(0, yield MangaDexSettings_1.getAmountRecommendations(stateManager)));
+});
+exports.addRecommendedId = addRecommendedId;
+/*
+async removeRecommendedId(id: string): Promise<void>{
+    const recommendedIds: string[] = await this.getRecommendedIds()
+    
+    // If the id is already in the list, we put it at the end
+    const index = recommendedIds.indexOf(id, 0)
+    if (index > -1) {
+        recommendedIds.splice(index, 1)
+    }
+    
+    this.stateManager.store('recommendedIds', recommendedIds)
+}
+*/ 
+
+},{"./MangaDexSettings":56}],58:[function(require,module,exports){
 module.exports=[{"result":"ok","data":{"id":"0234a31e-a729-4e28-9d6a-3f87c4966b9e","type":"tag","attributes":{"name":{"en":"Oneshot"},"description":[],"group":"format","version":1}},"relationships":[]},{"result":"ok","data":{"id":"07251805-a27e-4d59-b488-f0bfbec15168","type":"tag","attributes":{"name":{"en":"Thriller"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"0a39b5a1-b235-4886-a747-1d05d216532d","type":"tag","attributes":{"name":{"en":"Award Winning"},"description":[],"group":"format","version":1}},"relationships":[]},{"result":"ok","data":{"id":"0bc90acb-ccc1-44ca-a34a-b9f3a73259d0","type":"tag","attributes":{"name":{"en":"Reincarnation"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"256c8bd9-4904-4360-bf4f-508a76d67183","type":"tag","attributes":{"name":{"en":"Sci-Fi"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"292e862b-2d17-4062-90a2-0356caa4ae27","type":"tag","attributes":{"name":{"en":"Time Travel"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"2bd2e8d0-f146-434a-9b51-fc9ff2c5fe6a","type":"tag","attributes":{"name":{"en":"Genderswap"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"2d1f5d56-a1e5-4d0d-a961-2193588b08ec","type":"tag","attributes":{"name":{"en":"Loli"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"31932a7e-5b8e-49a6-9f12-2afa39dc544c","type":"tag","attributes":{"name":{"en":"Traditional Games"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"320831a8-4026-470b-94f6-8353740e6f04","type":"tag","attributes":{"name":{"en":"Official Colored"},"description":[],"group":"format","version":1}},"relationships":[]},{"result":"ok","data":{"id":"33771934-028e-4cb3-8744-691e866a923e","type":"tag","attributes":{"name":{"en":"Historical"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"36fd93ea-e8b8-445e-b836-358f02b3d33d","type":"tag","attributes":{"name":{"en":"Monsters"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"391b0423-d847-456f-aff0-8b0cfc03066b","type":"tag","attributes":{"name":{"en":"Action"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"39730448-9a5f-48a2-85b0-a70db87b1233","type":"tag","attributes":{"name":{"en":"Demons"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"3b60b75c-a2d7-4860-ab56-05f391bb889c","type":"tag","attributes":{"name":{"en":"Psychological"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"3bb26d85-09d5-4d2e-880c-c34b974339e9","type":"tag","attributes":{"name":{"en":"Ghosts"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"3de8c75d-8ee3-48ff-98ee-e20a65c86451","type":"tag","attributes":{"name":{"en":"Animals"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"3e2b8dae-350e-4ab8-a8ce-016e844b9f0d","type":"tag","attributes":{"name":{"en":"Long Strip"},"description":[],"group":"format","version":1}},"relationships":[]},{"result":"ok","data":{"id":"423e2eae-a7a2-4a8b-ac03-a8351462d71d","type":"tag","attributes":{"name":{"en":"Romance"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"489dd859-9b61-4c37-af75-5b18e88daafc","type":"tag","attributes":{"name":{"en":"Ninja"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"4d32cc48-9f00-4cca-9b5a-a839f0764984","type":"tag","attributes":{"name":{"en":"Comedy"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"50880a9d-5440-4732-9afb-8f457127e836","type":"tag","attributes":{"name":{"en":"Mecha"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"51d83883-4103-437c-b4b1-731cb73d786c","type":"tag","attributes":{"name":{"en":"Anthology"},"description":[],"group":"format","version":1}},"relationships":[]},{"result":"ok","data":{"id":"5920b825-4181-4a17-beeb-9918b0ff7a30","type":"tag","attributes":{"name":{"en":"Boys\u0027 Love"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"5bd0e105-4481-44ca-b6e7-7544da56b1a3","type":"tag","attributes":{"name":{"en":"Incest"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"5ca48985-9a9d-4bd8-be29-80dc0303db72","type":"tag","attributes":{"name":{"en":"Crime"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"5fff9cde-849c-4d78-aab0-0d52b2ee1d25","type":"tag","attributes":{"name":{"en":"Survival"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"631ef465-9aba-4afb-b0fc-ea10efe274a8","type":"tag","attributes":{"name":{"en":"Zombies"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"65761a2a-415e-47f3-bef2-a9dababba7a6","type":"tag","attributes":{"name":{"en":"Reverse Harem"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"69964a64-2f90-4d33-beeb-f3ed2875eb4c","type":"tag","attributes":{"name":{"en":"Sports"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"7064a261-a137-4d3a-8848-2d385de3a99c","type":"tag","attributes":{"name":{"en":"Superhero"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"799c202e-7daa-44eb-9cf7-8a3c0441531e","type":"tag","attributes":{"name":{"en":"Martial Arts"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"7b2ce280-79ef-4c09-9b58-12b7c23a9b78","type":"tag","attributes":{"name":{"en":"Fan Colored"},"description":[],"group":"format","version":1}},"relationships":[]},{"result":"ok","data":{"id":"81183756-1453-4c81-aa9e-f6e1b63be016","type":"tag","attributes":{"name":{"en":"Samurai"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"81c836c9-914a-4eca-981a-560dad663e73","type":"tag","attributes":{"name":{"en":"Magical Girls"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"85daba54-a71c-4554-8a28-9901a8b0afad","type":"tag","attributes":{"name":{"en":"Mafia"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"87cc87cd-a395-47af-b27a-93258283bbc6","type":"tag","attributes":{"name":{"en":"Adventure"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"891cf039-b895-47f0-9229-bef4c96eccd4","type":"tag","attributes":{"name":{"en":"User Created"},"description":[],"group":"format","version":1}},"relationships":[]},{"result":"ok","data":{"id":"8c86611e-fab7-4986-9dec-d1a2f44acdd5","type":"tag","attributes":{"name":{"en":"Virtual Reality"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"92d6d951-ca5e-429c-ac78-451071cbf064","type":"tag","attributes":{"name":{"en":"Office Workers"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"9438db5a-7e2a-4ac0-b39e-e0d95a34b8a8","type":"tag","attributes":{"name":{"en":"Video Games"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"9467335a-1b83-4497-9231-765337a00b96","type":"tag","attributes":{"name":{"en":"Post-Apocalyptic"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"97893a4c-12af-4dac-b6be-0dffb353568e","type":"tag","attributes":{"name":{"en":"Sexual Violence"},"description":[],"group":"content","version":1}},"relationships":[]},{"result":"ok","data":{"id":"9ab53f92-3eed-4e9b-903a-917c86035ee3","type":"tag","attributes":{"name":{"en":"Crossdressing"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"a1f53773-c69a-4ce5-8cab-fffcd90b1565","type":"tag","attributes":{"name":{"en":"Magic"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"a3c67850-4684-404e-9b7f-c69850ee5da6","type":"tag","attributes":{"name":{"en":"Girls\u0027 Love"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"aafb99c1-7f60-43fa-b75f-fc9502ce29c7","type":"tag","attributes":{"name":{"en":"Harem"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"ac72833b-c4e9-4878-b9db-6c8a4a99444a","type":"tag","attributes":{"name":{"en":"Military"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"acc803a4-c95a-4c22-86fc-eb6b582d82a2","type":"tag","attributes":{"name":{"en":"Wuxia"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"ace04997-f6bd-436e-b261-779182193d3d","type":"tag","attributes":{"name":{"en":"Isekai"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"b11fda93-8f1d-4bef-b2ed-8803d3733170","type":"tag","attributes":{"name":{"en":"4-Koma"},"description":[],"group":"format","version":1}},"relationships":[]},{"result":"ok","data":{"id":"b13b2a48-c720-44a9-9c77-39c9979373fb","type":"tag","attributes":{"name":{"en":"Doujinshi"},"description":[],"group":"format","version":1}},"relationships":[]},{"result":"ok","data":{"id":"b1e97889-25b4-4258-b28b-cd7f4d28ea9b","type":"tag","attributes":{"name":{"en":"Philosophical"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"b29d6a3d-1569-4e7a-8caf-7557bc92cd5d","type":"tag","attributes":{"name":{"en":"Gore"},"description":[],"group":"content","version":1}},"relationships":[]},{"result":"ok","data":{"id":"b9af3a63-f058-46de-a9a0-e0c13906197a","type":"tag","attributes":{"name":{"en":"Drama"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"c8cbe35b-1b2b-4a3f-9c37-db84c4514856","type":"tag","attributes":{"name":{"en":"Medical"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"caaa44eb-cd40-4177-b930-79d3ef2afe87","type":"tag","attributes":{"name":{"en":"School Life"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"cdad7e68-1419-41dd-bdce-27753074a640","type":"tag","attributes":{"name":{"en":"Horror"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"cdc58593-87dd-415e-bbc0-2ec27bf404cc","type":"tag","attributes":{"name":{"en":"Fantasy"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"d14322ac-4d6f-4e9b-afd9-629d5f4d8a41","type":"tag","attributes":{"name":{"en":"Villainess"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"d7d1730f-6eb0-4ba6-9437-602cac38664c","type":"tag","attributes":{"name":{"en":"Vampires"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"da2d50ca-3018-4cc0-ac7a-6b7d472a29ea","type":"tag","attributes":{"name":{"en":"Delinquents"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"dd1f77c5-dea9-4e2b-97ae-224af09caf99","type":"tag","attributes":{"name":{"en":"Monster Girls"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"ddefd648-5140-4e5f-ba18-4eca4071d19b","type":"tag","attributes":{"name":{"en":"Shota"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"df33b754-73a3-4c54-80e6-1a74a8058539","type":"tag","attributes":{"name":{"en":"Police"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"e197df38-d0e7-43b5-9b09-2842d0c326dd","type":"tag","attributes":{"name":{"en":"Web Comic"},"description":[],"group":"format","version":1}},"relationships":[]},{"result":"ok","data":{"id":"e5301a23-ebd9-49dd-a0cb-2add944c7fe9","type":"tag","attributes":{"name":{"en":"Slice of Life"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"e64f6742-c834-471d-8d72-dd51fc02b835","type":"tag","attributes":{"name":{"en":"Aliens"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"ea2bc92d-1c26-4930-9b7c-d5c0dc1b6869","type":"tag","attributes":{"name":{"en":"Cooking"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"eabc5b4c-6aff-42f3-b657-3e90cbd00b75","type":"tag","attributes":{"name":{"en":"Supernatural"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"ee968100-4191-4968-93d3-f82d72be7e46","type":"tag","attributes":{"name":{"en":"Mystery"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"f4122d1c-3b44-44d0-9936-ff7502c39ad3","type":"tag","attributes":{"name":{"en":"Adaptation"},"description":[],"group":"format","version":1}},"relationships":[]},{"result":"ok","data":{"id":"f42fbf9e-188a-447b-9fdc-f19dc1e4d685","type":"tag","attributes":{"name":{"en":"Music"},"description":[],"group":"theme","version":1}},"relationships":[]},{"result":"ok","data":{"id":"f5ba408b-0e7a-484d-8d49-4e9125ac96de","type":"tag","attributes":{"name":{"en":"Full Color"},"description":[],"group":"format","version":1}},"relationships":[]},{"result":"ok","data":{"id":"f8f62932-27da-4fe4-8ee1-6779a8c5edba","type":"tag","attributes":{"name":{"en":"Tragedy"},"description":[],"group":"genre","version":1}},"relationships":[]},{"result":"ok","data":{"id":"fad12b5e-68ba-460e-b933-9ae8318f5b65","type":"tag","attributes":{"name":{"en":"Gyaru"},"description":[],"group":"theme","version":1}},"relationships":[]}]
 },{}]},{},[54])(54)
 });
