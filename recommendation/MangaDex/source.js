@@ -1199,14 +1199,14 @@ class MangaDex extends paperback_extensions_common_1.Source {
                                 for (const id of similarIds) {
                                     // `tiles[id]` may not exist, for example if the id is filtered by demographic by MD api
                                     if (tiles[id].title === undefined) {
+                                        console.log(`Id ${id} was not returned by MangaDex api for recommendation id ${recommendedId}`);
+                                    }
+                                    else {
                                         results.push(createMangaTile({
                                             id: id,
                                             title: createIconText({ text: tiles[id].title }),
                                             image: tiles[id].image
                                         }));
-                                    }
-                                    else {
-                                        console.log(`Id ${id} was not returned by MangaDex api for recommendation id ${recommendedId}`);
                                     }
                                 }
                                 section.items = results;
