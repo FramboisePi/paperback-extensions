@@ -667,8 +667,8 @@ const tag_json_1 = __importDefault(require("./external/tag.json"));
 const MANGADEX_DOMAIN = 'https://mangadex.org';
 const MANGADEX_API = 'https://api.mangadex.org';
 const COVER_BASE_URL = 'https://uploads.mangadex.org/covers';
-// Titles recommendation is shown on the homepage when enabled in source settings.
-// Recommendation are made using https://github.com/Similar-Manga
+// Titles recommendations are shown on the homepage when enabled in source settings.
+// Recommendations are made using https://github.com/Similar-Manga
 const RECOMMENDATION_URL = 'https://framboisepi.github.io/SimilarData';
 exports.MangaDexInfo = {
     author: 'nar1n',
