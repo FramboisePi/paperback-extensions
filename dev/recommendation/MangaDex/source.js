@@ -769,49 +769,6 @@ class MangaDex extends paperback_extensions_common_1.Source {
                 .buildUrl();
         });
     }
-    getRecommendedIds() {
-        return __awaiter(this, void 0, void 0, function* () {
-            // Return the list of ids that should be used for the recommendation system
-            const recommendedIds = yield this.stateManager.retrieve('recommendedIds');
-            if (recommendedIds === null) {
-                return [];
-            }
-            return recommendedIds;
-        });
-    }
-    isRecommendedId(id) {
-        return __awaiter(this, void 0, void 0, function* () {
-            // If id is recommended
-            const recommendedIds = yield this.getRecommendedIds();
-            return recommendedIds.includes(id);
-        });
-    }
-    addRecommendedId(id) {
-        return __awaiter(this, void 0, void 0, function* () {
-            // Add an id to the list of manga that should be used for the recommendation system
-            const recommendedIds = yield this.getRecommendedIds();
-            // If the id is already in the list, we put it at the end
-            const index = recommendedIds.indexOf(id, 0);
-            if (index > -1) {
-                recommendedIds.splice(index, 1);
-            }
-            // We add the id at the end of list
-            recommendedIds.push(id);
-            this.stateManager.store('recommendedIds', recommendedIds);
-        });
-    }
-    removeRecommendedId(id) {
-        return __awaiter(this, void 0, void 0, function* () {
-            // Add an id to the list of manga that should be used for the recommendation system
-            const recommendedIds = yield this.getRecommendedIds();
-            // If the id is already in the list, we put it at the end
-            const index = recommendedIds.indexOf(id, 0);
-            if (index > -1) {
-                recommendedIds.splice(index, 1);
-            }
-            this.stateManager.store('recommendedIds', recommendedIds);
-        });
-    }
     getMangaDetails(mangaId) {
         var _a;
         return __awaiter(this, void 0, void 0, function* () {
