@@ -56,6 +56,7 @@ const COVER_BASE_URL = 'https://uploads.mangadex.org/covers'
 
 // Titles recommendations are shown on the homepage when enabled in source settings.
 // Recommendations are made using https://github.com/Similar-Manga
+// They need to be activated in source settings
 const RECOMMENDATION_URL = 'https://framboisepi.github.io/SimilarData'
 
 export const MangaDexInfo: SourceInfo = {
