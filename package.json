@@ -1,7 +1,8 @@
 {
-  "name": "extensions-official",
+  "name": "lemons-extensions",
+  "repositoryName": "Lemon's Extensions",
   "version": "1.0.0",
-  "description": "Community maintained Paperback extension repository",
+  "description": "Alternative extensions for Paperback",
   "main": "index.js",
   "scripts": {
     "bundle": "paperback bundle",
@@ -9,14 +10,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Paperback-iOS/extensions-official.git"
+    "url": "git+https://github.com/FramboisePi/paperback-extensions.git"
   },
   "author": "Paperback Community",
   "license": "GPL-3.0-or-later",
   "bugs": {
-    "url": "https://github.com/Paperback-iOS/extensions-official/issues"
+    "url": "https://github.com/FramboisePi/paperback-extensions/issues"
   },
-  "homepage": "https://github.com/Paperback-iOS/extensions-official#readme",
+  "homepage": "https://github.com/FramboisePi/paperback-extensions#readme",
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^4.25.0",
     "@typescript-eslint/parser": "^4.25.0",
