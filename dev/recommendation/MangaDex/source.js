@@ -1004,7 +1004,8 @@ class MangaDex extends paperback_extensions_common_1.Source {
             const ratings = yield MangaDexSettings_1.getRatings(this.stateManager);
             const languages = yield MangaDexSettings_1.getLanguages(this.stateManager);
             const promises = [];
-            // If the user want to see recommendation on the homepage, we process them
+            // On the homepage we only show sections enabled in source settings:
+            // enabled_homepage_sections and recommended titles sections
             const enabled_homepage_sections = yield MangaDexSettings_1.getEnabledHomePageSections(this.stateManager);
             const sections = [
                 {
@@ -1966,7 +1967,7 @@ const homepageSettings = (stateManager) => {
                     // `Invalid type for key value; expected `Bool` got `Optional<JSValue>``
                     stateManager.store('enabled_recommendations', values.enabled_recommendations),
                     stateManager.store('amount_of_recommendations', values.amount_of_recommendations),
-                    MangaDexSimilarManga_1.spliceRecommendedIds(stateManager, values.amount_of_recommendations),
+                    MangaDexSimilarManga_1.sliceRecommendedIds(stateManager, values.amount_of_recommendations),
                 ]).then();
             },
             validate: () => {
@@ -2062,7 +2063,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.addRecommendedId = exports.spliceRecommendedIds = exports.getRecommendedIds = void 0;
+exports.addRecommendedId = exports.sliceRecommendedIds = exports.getRecommendedIds = void 0;
 const MangaDexSettings_1 = require("./MangaDexSettings");
 const getRecommendedIds = (stateManager) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
@@ -2072,12 +2073,12 @@ const getRecommendedIds = (stateManager) => __awaiter(void 0, void 0, void 0, fu
     return (_a = (yield stateManager.retrieve('recommendedIds'))) !== null && _a !== void 0 ? _a : [];
 });
 exports.getRecommendedIds = getRecommendedIds;
-const spliceRecommendedIds = (stateManager, amount) => __awaiter(void 0, void 0, void 0, function* () {
+const sliceRecommendedIds = (stateManager, amount) => __awaiter(void 0, void 0, void 0, function* () {
     // Only keep `amount` elements in the recommendation list
     const recommendedIds = yield exports.getRecommendedIds(stateManager);
     stateManager.store('recommendedIds', recommendedIds.slice(0, amount));
 });
-exports.spliceRecommendedIds = spliceRecommendedIds;
+exports.sliceRecommendedIds = sliceRecommendedIds;
 const addRecommendedId = (stateManager, mangaId) => __awaiter(void 0, void 0, void 0, function* () {
     // Add an id to the list of manga that should be used for recommendations
     const recommendedIds = yield exports.getRecommendedIds(stateManager);
