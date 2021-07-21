@@ -1104,7 +1104,7 @@ class MangaDex extends paperback_extensions_common_1.Source {
                                 const section = createHomeSection({
                                     id: recommendedId,
                                     // Can titles be html encoded?
-                                    title: this.decodeHTMLEntity(similarJson.title.en),
+                                    title: 'More like ' + this.decodeHTMLEntity(similarJson.title.en),
                                     view_more: false,
                                 });
                                 // Let the app load empty sections
