@@ -678,7 +678,7 @@ exports.MangaDexInfo = {
     description: 'Extension that pulls manga from MangaDex',
     icon: 'icon.png',
     name: 'MangaDex',
-    version: '2.0.10',
+    version: '2.0.11',
     authorWebsite: 'https://github.com/nar1n',
     websiteBaseURL: MANGADEX_DOMAIN,
     contentRating: paperback_extensions_common_1.ContentRating.EVERYONE,
@@ -885,7 +885,7 @@ class MangaDex extends paperback_extensions_common_1.Source {
                         .addQueryParameter('offset', offset)
                         .addQueryParameter('includes', ['scanlation_group'])
                         .addQueryParameter('translatedLanguage', languages)
-                        .addQueryParameter('order', { 'volume': 'desc', 'chapter': 'desc' })
+                        .addQueryParameter('order', { 'volume': 'desc', 'chapter': 'desc', 'publishAt': 'desc' })
                         .buildUrl(),
                     method: 'GET',
                 });
