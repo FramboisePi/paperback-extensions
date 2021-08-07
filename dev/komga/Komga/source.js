@@ -2394,7 +2394,7 @@ const KomgaCommon_1 = require("./KomgaCommon");
 //  - getTags() which is called on the homepage
 //  - search method which is called even if the user search in an other source
 exports.KomgaInfo = {
-    version: "1.1.3",
+    version: "1.2.0",
     name: "Komga",
     icon: "icon.png",
     author: "Lemon",
