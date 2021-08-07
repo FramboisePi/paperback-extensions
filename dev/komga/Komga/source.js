@@ -2378,7 +2378,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Komga = exports.KomgaRequestInterceptor = exports.getServerUnavailableMangaTiles = exports.capitalize = exports.parseMangaStatus = exports.KomgaInfo = void 0;
 const paperback_extensions_common_1 = require("paperback-extensions-common");
-const Languages_1 = require("./Languages");
 const KomgaSettings_1 = require("./KomgaSettings");
 exports.KomgaInfo = {
     version: "1.1.3",
@@ -2593,7 +2592,6 @@ class Komga extends paperback_extensions_common_1.Source {
         });
     }
     getChapters(mangaId) {
-        var _a;
         return __awaiter(this, void 0, void 0, function* () {
             /*
               In Komga a chapter is a `book`
@@ -2614,7 +2612,7 @@ class Komga extends paperback_extensions_common_1.Source {
             });
             const serieResponse = yield this.requestManager.schedule(serieRequest, 1);
             const serieResult = (typeof serieResponse.data) === "string" ? JSON.parse(serieResponse.data) : serieResponse.data;
-            const languageCode = (_a = Languages_1.reverseLangCode[serieResult.metadata.language]) !== null && _a !== void 0 ? _a : Languages_1.reverseLangCode['_unknown'];
+            const languageCode = parseLangCode(serieResult.metadata.language);
             for (let book of booksResult.content) {
                 chapters.push(createChapter({
                     id: book.id,
@@ -2863,7 +2861,7 @@ class Komga extends paperback_extensions_common_1.Source {
 }
 exports.Komga = Komga;
 
-},{"./KomgaSettings":50,"./Languages":51,"paperback-extensions-common":8}],50:[function(require,module,exports){
+},{"./KomgaSettings":50,"paperback-extensions-common":8}],50:[function(require,module,exports){
 (function (Buffer){(function (){
 "use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
@@ -3064,53 +3062,5 @@ const resetSettingsButton = (stateManager) => {
 exports.resetSettingsButton = resetSettingsButton;
 
 }).call(this)}).call(this,require("buffer").Buffer)
-},{"buffer":3}],51:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.reverseLangCode = void 0;
-const paperback_extensions_common_1 = require("paperback-extensions-common");
-exports.reverseLangCode = {
-    '_unknown': paperback_extensions_common_1.LanguageCode.UNKNOWN,
-    'bd': paperback_extensions_common_1.LanguageCode.BENGALI,
-    'bg': paperback_extensions_common_1.LanguageCode.BULGARIAN,
-    'br': paperback_extensions_common_1.LanguageCode.BRAZILIAN,
-    'cn': paperback_extensions_common_1.LanguageCode.CHINEESE,
-    'cz': paperback_extensions_common_1.LanguageCode.CZECH,
-    'de': paperback_extensions_common_1.LanguageCode.GERMAN,
-    'dk': paperback_extensions_common_1.LanguageCode.DANISH,
-    'gb': paperback_extensions_common_1.LanguageCode.ENGLISH,
-    'en': paperback_extensions_common_1.LanguageCode.ENGLISH,
-    'es': paperback_extensions_common_1.LanguageCode.SPANISH,
-    'fi': paperback_extensions_common_1.LanguageCode.FINNISH,
-    'fr': paperback_extensions_common_1.LanguageCode.FRENCH,
-    'gr': paperback_extensions_common_1.LanguageCode.GREEK,
-    'hk': paperback_extensions_common_1.LanguageCode.CHINEESE_HONGKONG,
-    'hu': paperback_extensions_common_1.LanguageCode.HUNGARIAN,
-    'id': paperback_extensions_common_1.LanguageCode.INDONESIAN,
-    'il': paperback_extensions_common_1.LanguageCode.ISRELI,
-    'in': paperback_extensions_common_1.LanguageCode.INDIAN,
-    'ir': paperback_extensions_common_1.LanguageCode.IRAN,
-    'it': paperback_extensions_common_1.LanguageCode.ITALIAN,
-    'jp': paperback_extensions_common_1.LanguageCode.JAPANESE,
-    'kr': paperback_extensions_common_1.LanguageCode.KOREAN,
-    'lt': paperback_extensions_common_1.LanguageCode.LITHUANIAN,
-    'mn': paperback_extensions_common_1.LanguageCode.MONGOLIAN,
-    'mx': paperback_extensions_common_1.LanguageCode.MEXIAN,
-    'my': paperback_extensions_common_1.LanguageCode.MALAY,
-    'nl': paperback_extensions_common_1.LanguageCode.DUTCH,
-    'no': paperback_extensions_common_1.LanguageCode.NORWEGIAN,
-    'ph': paperback_extensions_common_1.LanguageCode.PHILIPPINE,
-    'pl': paperback_extensions_common_1.LanguageCode.POLISH,
-    'pt': paperback_extensions_common_1.LanguageCode.PORTUGUESE,
-    'ro': paperback_extensions_common_1.LanguageCode.ROMANIAN,
-    'ru': paperback_extensions_common_1.LanguageCode.RUSSIAN,
-    'sa': paperback_extensions_common_1.LanguageCode.SANSKRIT,
-    'si': paperback_extensions_common_1.LanguageCode.SAMI,
-    'th': paperback_extensions_common_1.LanguageCode.THAI,
-    'tr': paperback_extensions_common_1.LanguageCode.TURKISH,
-    'ua': paperback_extensions_common_1.LanguageCode.UKRAINIAN,
-    'vn': paperback_extensions_common_1.LanguageCode.VIETNAMESE
-};
-
-},{"paperback-extensions-common":8}]},{},[49])(49)
+},{"buffer":3}]},{},[49])(49)
 });
