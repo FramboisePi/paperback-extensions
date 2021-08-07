@@ -2378,7 +2378,20 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Komga = exports.KomgaRequestInterceptor = exports.getServerUnavailableMangaTiles = exports.capitalize = exports.parseMangaStatus = exports.KomgaInfo = void 0;
 const paperback_extensions_common_1 = require("paperback-extensions-common");
+const Languages_1 = require("./Languages");
 const KomgaSettings_1 = require("./KomgaSettings");
+// This source use Komga REST API
+// https://komga.org/guides/rest.html
+// Manga are represented by `series`
+// Chapters are represented by `books`
+// The Basic Authentication is handled by the interceptor
+// Code and method used by both the source and the tracker are defined in the duplicated `KomgaCommon.ts` file
+// Due to the self hosted nature of Komga, this source requires the user to enter its server credentials in the source settings menu
+// Some methods are known to throw errors without specific actions from the user. They try to prevent this behavior when server settings are not set.
+// This include:
+//  - homepage sections
+//  - getTags() which is called on the homepage
+//  - search method which is called even if the user search in an other source
 exports.KomgaInfo = {
     version: "1.1.3",
     name: "Komga",
@@ -2470,11 +2483,6 @@ class Komga extends paperback_extensions_common_1.Source {
             requestsPerSecond: 4,
             interceptor: new KomgaRequestInterceptor(this.stateManager)
         });
-        /*
-        getMangaShareUrl(mangaId: string) {
-          return `${KOMGA_API_DOMAIN}/series/${mangaId}`
-        }
-        */
     }
     getAuthorizationString() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -2538,11 +2546,11 @@ class Komga extends paperback_extensions_common_1.Source {
             // The following part of the function should throw if there is an error and thus is not in the try/catch block
             const genresResult = (typeof genresResponse.data) === "string" ? JSON.parse(genresResponse.data) : genresResponse.data;
             const tagsResult = (typeof tagsResponse.data) === "string" ? JSON.parse(tagsResponse.data) : tagsResponse.data;
-            const tagSections = [createTagSection({ id: '0', label: 'genres', tags: [createTag({ id: "ide", label: "tes" })] })];
-            // createTagSection({ id: '1', label: 'tags', tags: [] })]
+            const tagSections = [createTagSection({ id: '0', label: 'genres', tags: [] }),
+                createTagSection({ id: '1', label: 'tags', tags: [] })];
             // For each tag, we append a type identifier to its id and capitalize its label
-            //tagSections[0]!.tags = genresResult.map((elem: string) => createTag({ id: "genre-" + elem, label: capitalize(elem) }))
-            //tagSections[1]!.tags = tagsResult.map((elem: string) => createTag({ id: "tag-" + elem, label: capitalize(elem) }))
+            tagSections[0].tags = genresResult.map((elem) => createTag({ id: "genre-" + elem, label: exports.capitalize(elem) }));
+            tagSections[1].tags = tagsResult.map((elem) => createTag({ id: "tag-" + elem, label: exports.capitalize(elem) }));
             return tagSections;
         });
     }
@@ -2599,7 +2607,7 @@ class Komga extends paperback_extensions_common_1.Source {
             const komgaAPI = yield this.getKomgaAPI();
             const booksRequest = createRequestObject({
                 url: `${komgaAPI}/series/${mangaId}/books`,
-                param: "?unpaged=true&media_status=READY",
+                param: "?unpaged=true&media_status=READY&deleted=false",
                 method: "GET",
             });
             const booksResponse = yield this.requestManager.schedule(booksRequest, 1);
@@ -2612,7 +2620,7 @@ class Komga extends paperback_extensions_common_1.Source {
             });
             const serieResponse = yield this.requestManager.schedule(serieRequest, 1);
             const serieResult = (typeof serieResponse.data) === "string" ? JSON.parse(serieResponse.data) : serieResponse.data;
-            const languageCode = parseLangCode(serieResult.metadata.language);
+            const languageCode = Languages_1.parseLangCode(serieResult.metadata.language);
             for (let book of booksResult.content) {
                 chapters.push(createChapter({
                     id: book.id,
@@ -2718,7 +2726,6 @@ class Komga extends paperback_extensions_common_1.Source {
                     id: serie.id,
                     title: createIconText({ text: serie.metadata.title }),
                     image: `${komgaAPI}/series/${serie.id}/thumbnail`,
-                    subtitleText: createIconText({ text: "id: " + serie.id }),
                 }));
             }
             // If no series were returned we are on the last page
@@ -2765,7 +2772,7 @@ class Komga extends paperback_extensions_common_1.Source {
                 sectionCallback(section);
                 const request = createRequestObject({
                     url: `${komgaAPI}/series/${section.id}`,
-                    param: "?page=0&size=20",
+                    param: "?page=0&size=20&deleted=false",
                     method: "GET",
                 });
                 // Get the section data
@@ -2777,7 +2784,6 @@ class Komga extends paperback_extensions_common_1.Source {
                             id: serie.id,
                             title: createIconText({ text: serie.metadata.title }),
                             image: `${komgaAPI}/series/${serie.id}/thumbnail`,
-                            subtitleText: createIconText({ text: "id: " + serie.id }),
                         }));
                     }
                     section.items = tiles;
@@ -2795,7 +2801,7 @@ class Komga extends paperback_extensions_common_1.Source {
             let page = (_a = metadata === null || metadata === void 0 ? void 0 : metadata.page) !== null && _a !== void 0 ? _a : 0;
             const request = createRequestObject({
                 url: `${komgaAPI}/series/${homepageSectionId}`,
-                param: `?page=${page}&size=${PAGE_SIZE}`,
+                param: `?page=${page}&size=${PAGE_SIZE}&deleted=false`,
                 method: "GET",
             });
             const data = yield this.requestManager.schedule(request, 1);
@@ -2806,7 +2812,6 @@ class Komga extends paperback_extensions_common_1.Source {
                     id: serie.id,
                     title: createIconText({ text: serie.metadata.title }),
                     image: `${komgaAPI}/series/${serie.id}/thumbnail`,
-                    subtitleText: createIconText({ text: "id: " + serie.id }),
                 }));
             }
             // If no series were returned we are on the last page
@@ -2828,7 +2833,7 @@ class Komga extends paperback_extensions_common_1.Source {
             while (loadMore) {
                 const request = createRequestObject({
                     url: `${komgaAPI}/series/updated/`,
-                    param: `?page=${page}&size=${PAGE_SIZE}`,
+                    param: `?page=${page}&size=${PAGE_SIZE}&deleted=false`,
                     method: "GET",
                 });
                 const data = yield this.requestManager.schedule(request, 1);
@@ -2861,7 +2866,7 @@ class Komga extends paperback_extensions_common_1.Source {
 }
 exports.Komga = Komga;
 
-},{"./KomgaSettings":50,"paperback-extensions-common":8}],50:[function(require,module,exports){
+},{"./KomgaSettings":50,"./Languages":51,"paperback-extensions-common":8}],50:[function(require,module,exports){
 (function (Buffer){(function (){
 "use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
@@ -3062,5 +3067,64 @@ const resetSettingsButton = (stateManager) => {
 exports.resetSettingsButton = resetSettingsButton;
 
 }).call(this)}).call(this,require("buffer").Buffer)
-},{"buffer":3}]},{},[49])(49)
+},{"buffer":3}],51:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.parseLangCode = void 0;
+const paperback_extensions_common_1 = require("paperback-extensions-common");
+const reverseLangCode = {
+    '_unknown': paperback_extensions_common_1.LanguageCode.UNKNOWN,
+    'bn': paperback_extensions_common_1.LanguageCode.BENGALI,
+    'bg': paperback_extensions_common_1.LanguageCode.BULGARIAN,
+    //'br': LanguageCode.BRAZILIAN,         // use pt: Portuguese
+    'zs': paperback_extensions_common_1.LanguageCode.CHINEESE,
+    'cs': paperback_extensions_common_1.LanguageCode.CZECH,
+    'de': paperback_extensions_common_1.LanguageCode.GERMAN,
+    'da': paperback_extensions_common_1.LanguageCode.DANISH,
+    'en': paperback_extensions_common_1.LanguageCode.ENGLISH,
+    'es': paperback_extensions_common_1.LanguageCode.SPANISH,
+    'fi': paperback_extensions_common_1.LanguageCode.FINNISH,
+    'fr': paperback_extensions_common_1.LanguageCode.FRENCH,
+    'el': paperback_extensions_common_1.LanguageCode.GREEK,
+    //'hk': LanguageCode.CHINEESE_HONGKONG,
+    'hu': paperback_extensions_common_1.LanguageCode.HUNGARIAN,
+    'id': paperback_extensions_common_1.LanguageCode.INDONESIAN,
+    'he': paperback_extensions_common_1.LanguageCode.ISRELI,
+    'hi': paperback_extensions_common_1.LanguageCode.INDIAN,
+    'fa': paperback_extensions_common_1.LanguageCode.IRAN,
+    'it': paperback_extensions_common_1.LanguageCode.ITALIAN,
+    'ja': paperback_extensions_common_1.LanguageCode.JAPANESE,
+    'ko': paperback_extensions_common_1.LanguageCode.KOREAN,
+    'lt': paperback_extensions_common_1.LanguageCode.LITHUANIAN,
+    'mn': paperback_extensions_common_1.LanguageCode.MONGOLIAN,
+    //'mx': LanguageCode.MEXIAN,        // use es: Spanish
+    //'my': LanguageCode.MALAY,
+    'nl': paperback_extensions_common_1.LanguageCode.DUTCH,
+    'no': paperback_extensions_common_1.LanguageCode.NORWEGIAN,
+    'fil': paperback_extensions_common_1.LanguageCode.PHILIPPINE,
+    'pl': paperback_extensions_common_1.LanguageCode.POLISH,
+    'pt': paperback_extensions_common_1.LanguageCode.PORTUGUESE,
+    'ro': paperback_extensions_common_1.LanguageCode.ROMANIAN,
+    'ru': paperback_extensions_common_1.LanguageCode.RUSSIAN,
+    'sa': paperback_extensions_common_1.LanguageCode.SANSKRIT,
+    //'si': LanguageCode.SAMI,
+    'th': paperback_extensions_common_1.LanguageCode.THAI,
+    'tr': paperback_extensions_common_1.LanguageCode.TURKISH,
+    'uk': paperback_extensions_common_1.LanguageCode.UKRAINIAN,
+    'vi': paperback_extensions_common_1.LanguageCode.VIETNAMESE
+};
+const parseLangCode = (code) => {
+    // The code can have the format 'en' or 'en-gb'.
+    // We only use the first 2 or 3 letters.
+    var _a;
+    // There is 1 three letters code
+    if (code.substr(0, 3) === 'fil') {
+        return paperback_extensions_common_1.LanguageCode.PHILIPPINE;
+    }
+    // Other are two letters codes
+    return (_a = reverseLangCode[code.substr(0, 2)]) !== null && _a !== void 0 ? _a : paperback_extensions_common_1.LanguageCode.UNKNOWN;
+};
+exports.parseLangCode = parseLangCode;
+
+},{"paperback-extensions-common":8}]},{},[49])(49)
 });
