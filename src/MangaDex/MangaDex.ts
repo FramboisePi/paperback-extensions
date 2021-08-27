@@ -121,7 +121,7 @@ export class MangaDex extends Source {
         }
     }
 
-    override async getTags(): Promise<TagSection[]> {
+    override async getSearchTags(): Promise<TagSection[]> {
         const sections: Record<string, TagSection> = {}
 
         for(const tag of tagJSON) {
@@ -139,6 +139,14 @@ export class MangaDex extends Source {
         }
 
         return Object.values(sections)
+    }
+
+    override async supportsSearchOperators(): Promise<boolean> {
+        return true
+    }
+
+    override async supportsTagExclusion(): Promise<boolean> {
+        return true
     }
 
     async getMDHNodeURL(chapterId: string): Promise<string> {
@@ -384,7 +392,7 @@ export class MangaDex extends Source {
         })
     }
 
-    async searchRequest(query: SearchRequest, metadata: requestMetadata): Promise<PagedResults> {
+    async getSearchResults(query: SearchRequest, metadata: requestMetadata): Promise<PagedResults> {
         const ratings: string[] = await getRatings(this.stateManager)
         const offset: number = metadata?.offset ?? 0
         let results: MangaTile[] = []
