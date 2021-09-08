@@ -284,6 +284,7 @@ export class MangaDex extends Source {
 
         const languages: string[] = await getLanguages(this.stateManager)
         const skipSameChapter = await getSkipSameChapter(this.stateManager)
+        const ratings: string[] = await getRatings(this.stateManager)
         const collectedChapters: string[] = []
 
         const chapters: Chapter[] = []
@@ -302,6 +303,7 @@ export class MangaDex extends Source {
                     .addQueryParameter('includes', ['scanlation_group'])
                     .addQueryParameter('translatedLanguage', languages)
                     .addQueryParameter('order', {'volume': 'desc', 'chapter': 'desc', 'publishAt': 'desc'})
+                    .addQueryParameter('contentRating', ratings)
                     .buildUrl(),
                 method: 'GET',
             })
