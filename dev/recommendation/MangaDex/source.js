@@ -910,6 +910,7 @@ class MangaDex extends paperback_extensions_common_1.Source {
             }
             const languages = yield MangaDexSettings_1.getLanguages(this.stateManager);
             const skipSameChapter = yield MangaDexSettings_1.getSkipSameChapter(this.stateManager);
+            const ratings = yield MangaDexSettings_1.getRatings(this.stateManager);
             const collectedChapters = [];
             const chapters = [];
             let offset = 0;
@@ -926,6 +927,7 @@ class MangaDex extends paperback_extensions_common_1.Source {
                         .addQueryParameter('includes', ['scanlation_group'])
                         .addQueryParameter('translatedLanguage', languages)
                         .addQueryParameter('order', { 'volume': 'desc', 'chapter': 'desc', 'publishAt': 'desc' })
+                        .addQueryParameter('contentRating', ratings)
                         .buildUrl(),
                     method: 'GET',
                 });
