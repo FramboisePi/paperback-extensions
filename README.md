@@ -1,1 +1,1 @@
-# TEMPLATE USED FOR BRANCHING
+# [Komga](https://komga.org/) source for [Paperback](https://paperback.moe/)
