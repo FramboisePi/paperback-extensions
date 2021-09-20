@@ -126,7 +126,17 @@ export class KomgaRequestInterceptor implements RequestInterceptor {
         // raising an error in getAuthorizationString when we check for its existence
         // Thus we only inject an authorizationString if none are defined in the request
         if (request.headers.authorization === undefined) {
-            request.headers.authorization = await this.getAuthorizationString()
+            // `request` is immutable, we create and return a new request
+            const newRequest = createRequestObject({
+                url: request.url,
+                method: request.method,
+                param: request.param,
+                headers: {
+                    authorization: await this.getAuthorizationString()
+                }
+            })
+
+            return newRequest
         }
 
         return request
