@@ -378,7 +378,7 @@ export class Komga extends Source {
     }
 
 
-    override async getSearchResults(searchQuery: SearchRequest, metadata: any): Promise<PagedResults> {
+    override async searchRequest(searchQuery: SearchRequest, metadata: any): Promise<PagedResults> {
         // This function is also called when the user search in an other source. It should not throw if the server is unavailable.
         
         return KomgaCommon.searchRequest(searchQuery, metadata, this.requestManager, this.stateManager, PAGE_SIZE)
