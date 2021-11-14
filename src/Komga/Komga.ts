@@ -116,20 +116,32 @@ export class KomgaRequestInterceptor implements RequestInterceptor {
 
     async interceptRequest(request: Request): Promise<Request> {
 
-        if (request.headers === undefined) {
-            request.headers = {}
-        }
+        // NOTE: The interceptor only conserve the url, method, param and authorization header
 
+        let authorization
+		
         // We mustn't call this.getAuthorizationString() for the stateful submission request.
         // This procedure indeed catchs the request used to check user credentials
         // which can happen before an authorizationString is saved,
         // raising an error in getAuthorizationString when we check for its existence
         // Thus we only inject an authorizationString if none are defined in the request
-        if (request.headers.authorization === undefined) {
-            request.headers.authorization = await this.getAuthorizationString()
+        if (request.headers?.authorization === undefined) {
+            authorization = await this.getAuthorizationString()
+        } else {
+            authorization = request.headers.authorization
         }
 
-        return request
+
+        const newRequest = createRequestObject({
+            url: request.url,
+            method: request.method,
+            param: request.param,
+            headers: {
+                authorization: authorization
+            }
+        })
+
+        return newRequest
     }
 }
 
