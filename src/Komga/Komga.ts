@@ -69,7 +69,7 @@ const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/we
 // Number of items requested for paged requests
 const PAGE_SIZE = 40
 
-export const parseMangaStatus = (komgaStatus: string) => {
+export const parseMangaStatus = (komgaStatus: string): MangaStatus => {
     switch (komgaStatus) {
         case 'ENDED':
             return MangaStatus.COMPLETED
@@ -83,7 +83,7 @@ export const parseMangaStatus = (komgaStatus: string) => {
     return MangaStatus.ONGOING
 }
 
-export const capitalize = (tag: string) => {
+export const capitalize = (tag: string): string => {
     return tag.replace(/^\w/, (c) => c.toUpperCase())
 }
 
